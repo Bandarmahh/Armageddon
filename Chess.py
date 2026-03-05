@@ -33,7 +33,7 @@ class Pawn(Piece):
     def draw(self,surface):
         surface.blit(self.image,self.rect.topleft)
     def get_legal_moves(self):
-        self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400)]
+        self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400),(500,500)]
         return self.LEGAL_MOVES
 
 class Rock(Piece):
@@ -42,7 +42,7 @@ class Rock(Piece):
     def draw(self,surface):
         surface.blit(self.image,self.rect.topleft)
     def get_legal_moves(self):
-        self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400)]
+        self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400),(600,600)]
         return self.LEGAL_MOVES
 
 class Knight(Piece):
@@ -69,7 +69,7 @@ class Queen(Piece):
     def draw(self,surface):
         surface.blit(self.image,self.rect.topleft)
     def get_legal_moves(self):
-        self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400)]
+        self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400),(100,200)]
         return self.LEGAL_MOVES
 
 class King(Piece):
@@ -149,9 +149,13 @@ while running:
         elif event.type == pg.MOUSEBUTTONUP:
             if active_piece:
                 active_piece.drag = False
-                if((active_piece.rect.x // SQUARE_SIZE) * SQUARE_SIZE , (active_piece.rect.y // SQUARE_SIZE) * SQUARE_SIZE) in active_piece.get_legal_moves():
-                   active_piece.rect.x = (active_piece.rect.x // SQUARE_SIZE) * SQUARE_SIZE + SHIFT
-                   active_piece.rect.y = (active_piece.rect.y // SQUARE_SIZE) * SQUARE_SIZE + SHIFT
+                active_piece.rect.x = (active_piece.rect.x // SQUARE_SIZE) * SQUARE_SIZE + SHIFT
+                active_piece.rect.y = (active_piece.rect.y // SQUARE_SIZE) * SQUARE_SIZE + SHIFT
+                new_pos = (active_piece.rect.x,active_piece.rect.y)
+                if((active_piece.rect.x // SQUARE_SIZE) * SQUARE_SIZE , (active_piece.rect.y // SQUARE_SIZE) * SQUARE_SIZE) in active_piece.get_legal_moves() and new_pos != old_pos:
+                   for piece in pieces:
+                       if piece.rect.x == active_piece.rect.x and piece.rect.y == active_piece.rect.y and piece.color != active_piece.color:
+                           pieces.remove(piece) ; break
                    turn = 'black' if turn == 'white' else 'white'
                 else:
                    active_piece.rect.topleft = old_pos
@@ -163,6 +167,7 @@ while running:
     for piece in pieces:
         piece.draw(screen)
     pg.display.update()
+    pg.time.Clock().tick(60)
 
 
 

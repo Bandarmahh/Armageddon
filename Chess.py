@@ -1,7 +1,6 @@
 import pygame as pg ; import os ; from abc import ABC,abstractmethod ;  SCREEN_SIZE = 800 ; SQUARE_SIZE = 100 ; pieces = []
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) ; SHIFT = 10 ; PIECE_SIZE = SQUARE_SIZE-20 ;  running = True
 active_piece = None ; old_pos = None ; turn = 'white' ; pg.init() ; screen = pg.display.set_mode((SCREEN_SIZE,SCREEN_SIZE))
-White_Pawns = 0xFF00#
 #----------------------VARIABLES-----------------
 class GameBoard:
     def __init__(self,path,size):
@@ -11,8 +10,94 @@ class GameBoard:
     def draw(self,surface):
         surface.blit(self.image,(0,0))
 
+class BitBoard:
+    def __init__(self):
+        self.WHITE_PAWNS = 0x000000000000FF00
+        self.WHITE_KNIGHTS = 0x0000000000000042
+        self.WHITE_BISHOPS = 0x0000000000000024
+        self.WHITE_ROOKS = 0x0000000000000081
+        self.WHITE_QUEEN = 0x0000000000000008
+        self.WHITE_KING = 0x0000000000000010
+
+        self.BLACK_PAWNS = 0x00FF000000000000
+        self.BLACK_KNIGHTS = 0x4200000000000000
+        self.BLACK_BISHOPS = 0x2400000000000000
+        self.BLACK_ROOKS = 0x8100000000000000
+        self.BLACK_QUEEN = 0x0800000000000000
+        self.BLACK_KING = 0x1000000000000000
+
+        self.WHITE_PIECES = (self.WHITE_PAWNS | self.WHITE_KNIGHTS | self.WHITE_BISHOPS |
+                    self.WHITE_ROOKS | self.WHITE_QUEEN | self.WHITE_KING)
+
+        self.BLACK_PIECES = (self.BLACK_PAWNS | self.BLACK_KNIGHTS | self.BLACK_BISHOPS |
+                    self.BLACK_ROOKS | self.BLACK_QUEEN | self.BLACK_KING)
+
+        self.ALL_PIECES = self.WHITE_PIECES | self.BLACK_PIECES
+
+    def make_move(self, start_sq_bb, end_sq_bb, is_white_turn):
+        # 1. Combine the start and end squares into a single "move" bitboard
+        # This creates a bitboard with exactly two 1s on it.
+        move_bb = start_sq_bb | end_sq_bb
+
+        if is_white_turn:
+            # 2. Move the piece using XOR (^)
+            # This flips the start square to 0 (leaving) and the end square to 1 (arriving)
+            self.WHITE_PIECES ^= move_bb
+
+            # (In a full game, you'd also do this for the specific piece, e.g., self.WHITE_KNIGHTS ^= move_bb)
+
+            # 3. Handle captures
+            # Using AND (&), we check if the end square overlaps with a black piece
+            if end_sq_bb & self.BLACK_PIECES:
+                # Using AND NOT (& ~), we clear that bit from Black's pieces
+                self.BLACK_PIECES &= ~end_sq_bb
+
+        else:  # Black's turn
+            self.BLACK_PIECES ^= move_bb
+
+            if end_sq_bb & self.WHITE_PIECES:
+                self.WHITE_PIECES &= ~end_sq_bb
+
+        # 4. Finally, update the master ALL_PIECES board
+        self.ALL_PIECES = self.WHITE_PIECES | self.BLACK_PIECES
+    @staticmethod
+    def from_xy_to_bitboard(tup, square_size=100):
+        x, y = tup
+
+        # 1. Convert pixel coordinates to file (0-7 for a-h)
+        file = x // square_size
+
+        # 2. Convert pixel coordinates to rank (0-7 for 1-8)
+        # In most GUIs, y=0 is the TOP of the screen (Rank 8 / Black's side).
+        # We do `7 - ...` to flip it so Rank 1 (White's side) is index 0.
+        rank = 7 - (y // square_size)
+
+        # Ensure the click is actually on the board to avoid shifting out of bounds
+        if not (0 <= file <= 7 and 0 <= rank <= 7):
+            return 0  # Or handle out-of-bounds clicks however your game needs
+
+        # 3. Calculate the 1D square index (0 to 63)
+        square_index = (rank * 8) + file
+
+        # 4. Create the bitboard by shifting 1 by the square index
+        return 1 << int(square_index)
+
+    @staticmethod
+    def print_bitboard(bb):
+        # Print the board from rank 8 down to rank 1
+        for rank in range(7, -1, -1):
+            line = ""
+            for file in range(8):
+                square = rank * 8 + file
+                if (bb >> square) & 1:
+                    line += " 1 "
+                else:
+                    line += " . "
+            print(line)
+
 class Piece(ABC):
     def __init__(self,path,size,x,y,color):
+        self.x = x ; self.y = y
         self.img_path = os.path.join(BASE_DIR, path) ; self.size = size
         self.image = pg.image.load(self.img_path).convert_alpha()
         self.image = pg.transform.scale(self.image ,(self.size,self.size))
@@ -27,6 +112,7 @@ class Piece(ABC):
     def get_legal_moves(self):
         pass
 
+
 class Pawn(Piece):
     def __init__(self,path,size,x,y,color):
         super().__init__(path,size,x,y,color)
@@ -35,6 +121,7 @@ class Pawn(Piece):
     def get_legal_moves(self):
         self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400),(500,500)]
         return self.LEGAL_MOVES
+
 
 class Rock(Piece):
     def __init__(self,path,size,x,y,color):
@@ -45,6 +132,7 @@ class Rock(Piece):
         self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400),(600,600)]
         return self.LEGAL_MOVES
 
+
 class Knight(Piece):
     def __init__(self,path,size,x,y,color):
         super().__init__(path,size,x,y,color)
@@ -53,6 +141,7 @@ class Knight(Piece):
     def get_legal_moves(self):
         self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400)]
         return self.LEGAL_MOVES
+
 
 class Bishop(Piece):
     def __init__(self,path,size,x,y,color):
@@ -63,6 +152,7 @@ class Bishop(Piece):
         self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400)]
         return self.LEGAL_MOVES
 
+
 class Queen(Piece):
     def __init__(self,path,size,x,y,color):
         super().__init__(path,size,x,y,color)
@@ -71,6 +161,7 @@ class Queen(Piece):
     def get_legal_moves(self):
         self.LEGAL_MOVES = [(100, 100), (200, 200), (300, 300), (400, 400),(100,200)]
         return self.LEGAL_MOVES
+
 
 class King(Piece):
     def __init__(self,path,size,x,y,color):
@@ -90,17 +181,8 @@ class King(Piece):
 
 
 
-
-
-
-
-
-
-
-
-
 #----------------------GAME_LOOP-----------------
-chess_board =  GameBoard("Images/Board.png",SCREEN_SIZE) ; chess_board.draw(screen)
+chess_board =  GameBoard("Images/Board.png",SCREEN_SIZE) ; chess_board.draw(screen) ; bitboard = BitBoard()
 W_Pawn1 = Pawn("Images/w_pawn_png_128px.png",PIECE_SIZE,0,600,"white")  ; W_Pawn1.draw(screen) ; pieces.append(W_Pawn1)
 W_Pawn2 = Pawn("Images/w_pawn_png_128px.png",PIECE_SIZE,100,600,"white") ; W_Pawn2.draw(screen) ; pieces.append(W_Pawn2)
 W_Pawn3 = Pawn("Images/w_pawn_png_128px.png",PIECE_SIZE,200,600,"white") ; W_Pawn3.draw(screen) ; pieces.append(W_Pawn3)
@@ -135,16 +217,22 @@ B_Bishop2 = Bishop("Images/b_bishop_png_128px.png", PIECE_SIZE, 500, 000,"black"
 B_King1 = King("Images/b_king_png_128px.png", PIECE_SIZE, 400, 000,"black") ; B_King1.draw(screen) ; pieces.append(B_King1)
 B_Queen1 = Queen("Images/b_queen_png_128px.png", PIECE_SIZE, 300, 000,"black") ; B_Queen1.draw(screen) ; pieces.append(B_Queen1)
 
+
+
+
+
 while running:
     for event in pg.event.get():
         if event.type == pg.QUIT:
+            bitboard.print_bitboard(bitboard.ALL_PIECES)
             pg.quit();quit()
         elif event.type == pg.MOUSEBUTTONDOWN:
-            for piece in pieces:
+            for piece in reversed(pieces):
                 if piece.rect.collidepoint(event.pos) and piece.color == turn:
                     piece.drag = True
                     active_piece = piece
-                    old_pos = piece.rect.topleft ; break
+                    old_pos = piece.rect.topleft
+                    pieces.remove(active_piece) ; pieces.append(active_piece) ;break
 
         elif event.type == pg.MOUSEBUTTONUP:
             if active_piece:
@@ -156,6 +244,11 @@ while running:
                    for piece in pieces:
                        if piece.rect.x == active_piece.rect.x and piece.rect.y == active_piece.rect.y and piece.color != active_piece.color:
                            pieces.remove(piece) ; break
+                   bitboard.make_move(bitboard.from_xy_to_bitboard((active_piece.x, active_piece.y)),
+                                      bitboard.from_xy_to_bitboard((active_piece.rect.x, active_piece.rect.y)),
+                                      turn == 'white')
+                   active_piece.x = active_piece.rect.x - SHIFT
+                   active_piece.y = active_piece.rect.y - SHIFT
                    turn = 'black' if turn == 'white' else 'white'
                 else:
                    active_piece.rect.topleft = old_pos
@@ -168,6 +261,4 @@ while running:
         piece.draw(screen)
     pg.display.update()
     pg.time.Clock().tick(60)
-
-
 
